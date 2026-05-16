@@ -54,8 +54,8 @@ final class OverlayViewController: NSViewController {
         NSLayoutConstraint.activate([
             statusBar.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
             statusBar.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            statusBar.heightAnchor.constraint(equalToConstant: 28),
-            statusBar.widthAnchor.constraint(lessThanOrEqualToConstant: 600)
+            statusBar.heightAnchor.constraint(equalToConstant: 28)
+            // Width is self-sizing: OverlayStatusBar has its own greaterThanOrEqual constraint.
         ])
     }
 
@@ -170,12 +170,15 @@ final class OverlayStatusBar: NSView {
         }
         NSLayoutConstraint.activate([
             spinner.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            spinner.widthAnchor.constraint(equalToConstant: 16),
             spinner.centerYAnchor.constraint(equalTo: centerYAnchor),
             label.leadingAnchor.constraint(equalTo: spinner.trailingAnchor, constant: 6),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -8),
             freezeBadge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-            freezeBadge.centerYAnchor.constraint(equalTo: centerYAnchor)
+            freezeBadge.centerYAnchor.constraint(equalTo: centerYAnchor),
+            // Guarantee the bar is always at least wide enough to show text.
+            widthAnchor.constraint(greaterThanOrEqualToConstant: 280)
         ])
     }
 

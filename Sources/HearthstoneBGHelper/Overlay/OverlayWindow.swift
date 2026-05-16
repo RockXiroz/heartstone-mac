@@ -1,6 +1,6 @@
 import AppKit
 
-// A borderless, click-through, always-on-top panel that floats over Hearthstone.
+// A borderless, click-through panel that floats above Hearthstone on the same screen.
 final class OverlayWindow: NSPanel {
 
     init(screen: NSScreen) {
@@ -11,21 +11,19 @@ final class OverlayWindow: NSPanel {
             defer: false
         )
 
-        level            = .screenSaver          // above everything, including full-screen games
+        // Use the overlay level (102) rather than screenSaver (1000).
+        // kCGOverlayWindowLevel correctly joins full-screen app Spaces on macOS 13+.
+        level            = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.overlayWindow)))
         backgroundColor  = .clear
         isOpaque         = false
         hasShadow        = false
-        ignoresMouseEvents = true                // pass all input to the game
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        ignoresMouseEvents  = true          // all clicks pass through to the game
+        isReleasedWhenClosed = false
+        collectionBehavior  = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         isMovableByWindowBackground = false
-        alphaValue       = 1.0
+        alphaValue = 1.0
     }
 
-    // Update frame to track the Hearthstone window
-    func trackWindow(frame: CGRect) {
-        setFrame(frame, display: true)
-    }
-
-    override var canBecomeKey: Bool { false }
+    override var canBecomeKey: Bool  { false }
     override var canBecomeMain: Bool { false }
 }

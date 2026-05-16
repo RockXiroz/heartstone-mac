@@ -34,6 +34,16 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
         stream = nil
     }
 
+    // The NSScreen that corresponds to the display being captured.
+    // Used by the overlay so it appears on the same screen as the game.
+    var captureScreen: NSScreen {
+        // Match by frame overlap (works for single and multi-monitor setups).
+        let best = NSScreen.screens.max {
+            $0.frame.intersection(windowFrame).area < $1.frame.intersection(windowFrame).area
+        }
+        return best ?? NSScreen.main ?? NSScreen.screens[0]
+    }
+
     // MARK: – Stream
 
     // Returns (window, app, display) for Hearthstone, or nil if not found.
@@ -145,6 +155,8 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
         return frame.cropping(to: pixelRect)
     }
 
+    // MARK: – Errors
+
     enum CaptureError: LocalizedError {
         case hearthstoneNotRunning
         var errorDescription: String? {
@@ -154,4 +166,8 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
             }
         }
     }
+}
+
+private extension CGRect {
+    var area: CGFloat { width * height }
 }

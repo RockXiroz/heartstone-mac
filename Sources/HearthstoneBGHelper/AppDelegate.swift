@@ -23,11 +23,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startCapture() async {
         do {
             try await capture.requestPermissionAndStart()
-            setupOverlay()
+            setupOverlay(on: capture.captureScreen)
 
             capture.onNewFrame = { [weak self] image, frame in
                 Task { @MainActor in
-                    self?.overlayWindow?.trackWindow(frame: frame)
+                    // frame here is the SCCapture display rect used only for OCR coordinate mapping.
+                    // The overlay window stays pinned to the screen frame set at startup.
                     self?.tracker.processFrame(image, windowFrame: frame)
                 }
             }
@@ -38,8 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: – Overlay setup
 
-    private func setupOverlay() {
-        guard let screen = NSScreen.main else { return }
+    private func setupOverlay(on screen: NSScreen) {
         let window = OverlayWindow(screen: screen)
         let vc = OverlayViewController()
         window.contentViewController = vc
