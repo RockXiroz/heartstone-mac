@@ -19,9 +19,7 @@ let package = Package(
                 .process("Resources/BattlegroundsCards.json"),
                 .process("Resources/TribeData.json")
             ],
-            swiftSettings: [
-                .unsafeFlags(["-parse-as-library"])
-            ]
+            swiftSettings: []
         )
     ]
 )

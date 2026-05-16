@@ -37,15 +37,15 @@ final class ArrowIndicatorView: NSView {
         badgeLayer.masksToBounds = true
         layer?.addSublayer(badgeLayer)
 
-        percentLabel.fontSize  = 16
-        percentLabel.fontName  = "AvenirNext-Bold"
+        percentLabel.font        = CTFontCreateWithName("AvenirNext-Bold" as CFString, 16, nil)
+        percentLabel.fontSize    = 16
         percentLabel.foregroundColor = CGColor.white
         percentLabel.alignmentMode  = .center
         percentLabel.contentsScale  = 2
         badgeLayer.addSublayer(percentLabel)
 
-        tierLabel.fontSize  = 11
-        tierLabel.fontName  = "AvenirNext-Medium"
+        tierLabel.font        = CTFontCreateWithName("AvenirNext-Medium" as CFString, 11, nil)
+        tierLabel.fontSize    = 11
         tierLabel.foregroundColor = CGColor.white
         tierLabel.alignmentMode  = .center
         tierLabel.contentsScale  = 2
