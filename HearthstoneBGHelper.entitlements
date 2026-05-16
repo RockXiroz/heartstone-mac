@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Required for ScreenCaptureKit -->
+    <key>com.apple.security.screen-capture</key>
+    <true/>
+    <!-- Required for network access to fetch HSReplay data -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- Required to display overlay above full-screen app -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+</dict>
+</plist>

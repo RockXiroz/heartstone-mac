@@ -1,0 +1,81 @@
+{
+  "tribes": [
+    {
+      "id": "Beast",
+      "synergyThreshold": 3,
+      "isScaling": false,
+      "keyCards": ["Mama Bear", "Pack Leader", "Alleycat"],
+      "description": "獸族依靠召喚觸發BUFF，中期強力"
+    },
+    {
+      "id": "Demon",
+      "synergyThreshold": 3,
+      "isScaling": false,
+      "keyCards": ["Mal'Ganis", "Voidlord", "Imp Gang Boss"],
+      "description": "惡魔族擁有強力的持續加成，後期穩定"
+    },
+    {
+      "id": "Dragon",
+      "synergyThreshold": 3,
+      "isScaling": true,
+      "keyCards": ["Kalecgos", "Murozond", "Nadina the Red"],
+      "description": "龍族依靠法術疊加，Kalecgos是核心"
+    },
+    {
+      "id": "Elemental",
+      "synergyThreshold": 3,
+      "isScaling": true,
+      "keyCards": ["Wildfire Elemental", "Djinni of Zephyrs"],
+      "description": "元素族連鎖施法，穩定中後期強度"
+    },
+    {
+      "id": "Mech",
+      "synergyThreshold": 3,
+      "isScaling": false,
+      "keyCards": ["Deflect-o-Bot", "Kangor's Apprentice", "Zapp Slywick"],
+      "description": "機械族磁化疊加神聖盾，防禦型強力"
+    },
+    {
+      "id": "Murloc",
+      "synergyThreshold": 3,
+      "isScaling": false,
+      "keyCards": ["Gentle Megasaur", "Old Murk-Eye", "Primalfin Lookout"],
+      "description": "魚人族早期強勢，需要快速出族"
+    },
+    {
+      "id": "Naga",
+      "synergyThreshold": 3,
+      "isScaling": true,
+      "keyCards": ["Scale of Onyxia", "Nami Dah"],
+      "description": "娜迦族法術驅動，成長性極高"
+    },
+    {
+      "id": "Pirate",
+      "synergyThreshold": 3,
+      "isScaling": false,
+      "keyCards": ["Cap'n Hoggarr", "Southsea Strongarm"],
+      "description": "海盜族速攻，中前期攻擊力壓制"
+    },
+    {
+      "id": "Quilboar",
+      "synergyThreshold": 2,
+      "isScaling": true,
+      "keyCards": ["Bristleback Knight", "Groundshaker"],
+      "description": "野豬族血珠累積，高天花板成長"
+    },
+    {
+      "id": "Undead",
+      "synergyThreshold": 3,
+      "isScaling": true,
+      "keyCards": ["Rotting Idol", "Scourged Wolfobimp"],
+      "description": "亡靈族死亡觸發，後期爆炸成長"
+    },
+    {
+      "id": "Titan",
+      "synergyThreshold": 3,
+      "isScaling": false,
+      "keyCards": [],
+      "description": "巨人族特殊機制，視英雄搭配"
+    }
+  ]
+}
