@@ -82,7 +82,7 @@ final class ArrowIndicatorView: NSView {
         arrowPath.addLine(to: CGPoint(x: cx - 8,     y: top + shaft))
         arrowPath.closeSubpath()
 
-        arrowLayer.path        = arrowPath
+        arrowLayer.path        = arrowPath.copy()   // .copy() → immutable CGPath, avoids macOS 14-only bridge
         arrowLayer.fillColor   = color
         arrowLayer.strokeColor = NSColor.white.withAlphaComponent(0.6).cgColor
 
