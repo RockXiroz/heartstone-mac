@@ -95,9 +95,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showPermissionError(_ error: Error) {
+        // "Game not found" is retryable – don't quit, just show a notice and poll.
+        if case ScreenCaptureService.CaptureError.hearthstoneNotRunning = error {
+            let alert = NSAlert()
+            alert.messageText = "找不到爐石傳說視窗"
+            alert.informativeText = "請確認遊戲已開啟並進入英雄戰場。\n助手將每 5 秒自動重試。"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "立即重試")
+            alert.addButton(withTitle: "結束")
+            if alert.runModal() == .alertFirstButtonReturn {
+                Task { await self.startCapture() }
+            } else {
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
+        // Actual SCStream / permission error – direct user to System Settings.
         let alert = NSAlert()
         alert.messageText = "無法啟動螢幕擷取"
-        alert.informativeText = "\(error.localizedDescription)\n\n請至「系統設定 → 隱私權與安全性 → 螢幕錄製」授予權限。"
+        alert.informativeText = "請至「系統設定 → 隱私權與安全性 → 螢幕錄製」授予本程式權限，然後重新啟動。\n\n錯誤：\(error.localizedDescription)"
         alert.alertStyle = .critical
         alert.addButton(withTitle: "開啟系統設定")
         alert.addButton(withTitle: "結束")

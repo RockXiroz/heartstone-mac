@@ -37,11 +37,26 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
     // MARK: – Stream
 
     private func findHearthstoneWindow() async -> SCWindow? {
-        let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        return content?.windows.first(where: {
-            $0.owningApplication?.applicationName.lowercased().contains("hearthstone") == true
-                || $0.title?.lowercased().contains("hearthstone") == true
-        })
+        // Try on-screen windows first, then all windows (catches full-screen / other Spaces).
+        for onScreenOnly in [true, false] {
+            guard let content = try? await SCShareableContent.excludingDesktopWindows(
+                false, onScreenWindowsOnly: onScreenOnly
+            ) else { continue }
+
+            if let w = content.windows.first(where: { isHearthstone($0) }) {
+                return w
+            }
+        }
+        return nil
+    }
+
+    private func isHearthstone(_ w: SCWindow) -> Bool {
+        let app = w.owningApplication
+        // Match by bundle ID (most reliable) or by display name / window title.
+        let bundleMatch = app?.bundleIdentifier?.lowercased().contains("hearthstone") == true
+        let nameMatch   = app?.applicationName.lowercased().contains("hearthstone") == true
+        let titleMatch  = w.title?.lowercased().contains("hearthstone") == true
+        return bundleMatch || nameMatch || titleMatch
     }
 
     private func startStream(for window: SCWindow) async throws {
