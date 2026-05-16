@@ -17,10 +17,12 @@ final class GameStateTracker: ObservableObject {
     private let db       = CardDatabase.shared
     private let winRate  = WinRateService.shared
 
-    private var lastShopHash = ""   // avoid recomputing on identical frames
+    private var lastShopHash = "uninitialised"  // sentinel ≠ "" so empty result is still processed once
+    private var frameCount = 0
 
     // Called by ScreenCaptureService for every new frame
     func processFrame(_ image: CGImage, windowFrame: CGRect) {
+        frameCount += 1
         Task { await analyse(image: image, windowFrame: windowFrame) }
     }
 
@@ -34,8 +36,21 @@ final class GameStateTracker: ObservableObject {
 
         let (shopNames, tier, gold) = await (rawShop, rawTier, rawGold)
 
-        // 2. Build a hash to skip unchanged frames
+        // 2. Always update status so the user knows frames are arriving,
+        //    even during battle phase when the shop is empty.
         let shopHash = shopNames.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }.joined()
+
+        if shopNames.isEmpty {
+            // Battle phase or non-shop screen – update status but don't recompute recommendations.
+            if lastShopHash != "" {          // first time we see an empty shop
+                lastShopHash = ""
+                recommendation = nil
+            }
+            statusMessage = "戰鬥或選擇階段，等待補兵畫面… (已接收 \(frameCount) 幀)"
+            isProcessing = false
+            return
+        }
+
         guard shopHash != lastShopHash else { return }
         lastShopHash = shopHash
 

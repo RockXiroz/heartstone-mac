@@ -18,15 +18,15 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
     // MARK: – Setup
 
     func requestPermissionAndStart() async throws {
-        // iOS-style permission check; on macOS this prompts the user in System Settings
-        try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        // Trigger the system permission prompt.
+        _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
 
-        guard let window = await findHearthstoneWindow() else {
+        guard let (window, app, display) = await findHearthstone() else {
             throw CaptureError.hearthstoneNotRunning
         }
         hearthstoneWindow = window
-        windowFrame = window.frame
-        try await startStream(for: window)
+        windowFrame = display.frame          // use display frame for full-screen accuracy
+        try await startStream(app: app, display: display)
     }
 
     func stop() {
@@ -36,35 +36,56 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
 
     // MARK: – Stream
 
-    private func findHearthstoneWindow() async -> SCWindow? {
-        // Try on-screen windows first, then all windows (catches full-screen / other Spaces).
-        for onScreenOnly in [true, false] {
-            guard let content = try? await SCShareableContent.excludingDesktopWindows(
-                false, onScreenWindowsOnly: onScreenOnly
-            ) else { continue }
+    // Returns (window, app, display) for Hearthstone, or nil if not found.
+    private func findHearthstone() async -> (SCWindow, SCRunningApplication, SCDisplay)? {
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(
+            false, onScreenWindowsOnly: false
+        ) else { return nil }
 
-            if let w = content.windows.first(where: { isHearthstone($0) }) {
-                return w
-            }
+        // Identify the Hearthstone app first (works even when window list is incomplete
+        // for full-screen apps).
+        guard let app = content.applications.first(where: { isHearthstoneApp($0) }) else {
+            return nil
         }
-        return nil
+
+        // Find any window owned by that app (may have zero frame when full-screen – that's OK).
+        let window = content.windows.first { $0.owningApplication?.processID == app.processID }
+
+        // Find which display the app is on; default to main display.
+        let display: SCDisplay
+        if let w = window, let d = content.displays.first(where: { $0.frame.intersects(w.frame) }) {
+            display = d
+        } else if let d = content.displays.max(by: { $0.frame.width < $1.frame.width }) {
+            display = d     // largest display – most likely where the game is
+        } else {
+            return nil
+        }
+
+        // The window value is only used to store a reference; the app filter drives capture.
+        // Fall back to any available window when full-screen hides the real one.
+        guard let resolvedWindow = window ?? content.windows.first else { return nil }
+
+        return (resolvedWindow, app, display)
     }
 
-    private func isHearthstone(_ w: SCWindow) -> Bool {
-        let app = w.owningApplication
-        // Match by bundle ID (most reliable) or by display name / window title.
-        let bundleMatch = app?.bundleIdentifier.lowercased().contains("hearthstone") == true
-        let nameMatch   = app?.applicationName.lowercased().contains("hearthstone") == true
-        let titleMatch  = w.title?.lowercased().contains("hearthstone") == true
-        return bundleMatch || nameMatch || titleMatch
+    private func isHearthstoneApp(_ app: SCRunningApplication) -> Bool {
+        let bundle = app.bundleIdentifier.lowercased()
+        let name   = app.applicationName.lowercased()
+        return bundle.contains("hearthstone") || name.contains("hearthstone")
     }
 
-    private func startStream(for window: SCWindow) async throws {
-        let filter = SCContentFilter(desktopIndependentWindow: window)
+    // Capture the display filtered to only the Hearthstone process.
+    // This is the most reliable method for both windowed and full-screen modes.
+    private func startStream(app: SCRunningApplication, display: SCDisplay) async throws {
+        let filter = SCContentFilter(
+            display: display,
+            includingApplications: [app],
+            exceptingWindows: []
+        )
         let config = SCStreamConfiguration()
-        config.width  = Int(window.frame.width)
-        config.height = Int(window.frame.height)
-        config.minimumFrameInterval = CMTime(value: 1, timescale: 4)  // 4 fps – enough for UI
+        config.width  = Int(display.frame.width)
+        config.height = Int(display.frame.height)
+        config.minimumFrameInterval = CMTime(value: 1, timescale: 4)   // 4 fps
         config.queueDepth = 2
         config.pixelFormat = kCVPixelFormatType_32BGRA
 
