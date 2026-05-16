@@ -79,7 +79,7 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
     private func startStream(app: SCRunningApplication, display: SCDisplay) async throws {
         let filter = SCContentFilter(
             display: display,
-            includingApplications: [app],
+            including: [app],
             exceptingWindows: []
         )
         let config = SCStreamConfiguration()
