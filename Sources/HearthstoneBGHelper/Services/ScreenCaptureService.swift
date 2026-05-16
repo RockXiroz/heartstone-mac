@@ -53,7 +53,7 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
     private func isHearthstone(_ w: SCWindow) -> Bool {
         let app = w.owningApplication
         // Match by bundle ID (most reliable) or by display name / window title.
-        let bundleMatch = app?.bundleIdentifier?.lowercased().contains("hearthstone") == true
+        let bundleMatch = app?.bundleIdentifier.lowercased().contains("hearthstone") == true
         let nameMatch   = app?.applicationName.lowercased().contains("hearthstone") == true
         let titleMatch  = w.title?.lowercased().contains("hearthstone") == true
         return bundleMatch || nameMatch || titleMatch
