@@ -65,24 +65,24 @@ final class ArrowIndicatorView: NSView {
         let (r, g, b) = rec.tier.color
         let color = NSColor(red: r, green: g, blue: b, alpha: 1).cgColor
 
-        // Draw downward-pointing arrow centred in the view
-        let arrowPath = NSBezierPath()
+        // Draw downward-pointing arrow centred in the view (CGMutablePath works on macOS 13+)
         let cx = bounds.midX
         let top: CGFloat = 8
         let shaft = bounds.height * 0.45
         let headH = bounds.height * 0.35
         let headW: CGFloat = 28
 
-        arrowPath.move(to: NSPoint(x: cx - 8, y: top))
-        arrowPath.line(to: NSPoint(x: cx + 8, y: top))
-        arrowPath.line(to: NSPoint(x: cx + 8, y: top + shaft))
-        arrowPath.line(to: NSPoint(x: cx + headW, y: top + shaft))
-        arrowPath.line(to: NSPoint(x: cx, y: top + shaft + headH))
-        arrowPath.line(to: NSPoint(x: cx - headW, y: top + shaft))
-        arrowPath.line(to: NSPoint(x: cx - 8, y: top + shaft))
-        arrowPath.close()
+        let arrowPath = CGMutablePath()
+        arrowPath.move(to: CGPoint(x: cx - 8,     y: top))
+        arrowPath.addLine(to: CGPoint(x: cx + 8,     y: top))
+        arrowPath.addLine(to: CGPoint(x: cx + 8,     y: top + shaft))
+        arrowPath.addLine(to: CGPoint(x: cx + headW, y: top + shaft))
+        arrowPath.addLine(to: CGPoint(x: cx,          y: top + shaft + headH))
+        arrowPath.addLine(to: CGPoint(x: cx - headW, y: top + shaft))
+        arrowPath.addLine(to: CGPoint(x: cx - 8,     y: top + shaft))
+        arrowPath.closeSubpath()
 
-        arrowLayer.path        = arrowPath.cgPath
+        arrowLayer.path        = arrowPath
         arrowLayer.fillColor   = color
         arrowLayer.strokeColor = NSColor.white.withAlphaComponent(0.6).cgColor
 
