@@ -41,13 +41,12 @@ final class GameStateTracker: ObservableObject {
         let shopHash = shopNames.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }.joined()
 
         if shopNames.isEmpty {
-            // Battle phase or non-shop screen – update status but don't recompute recommendations.
-            if lastShopHash != "" {          // first time we see an empty shop
-                lastShopHash = ""
-                recommendation = nil
-            }
-            statusMessage = "戰鬥或選擇階段，等待補兵畫面… (已接收 \(frameCount) 幀)"
-            isProcessing = false
+            // Battle / selection phase – no shop visible.
+            // Always update status so the HUD shows the live frame count.
+            if recommendation != nil { recommendation = nil }
+            lastShopHash  = ""
+            statusMessage = "⚔️ 戰鬥階段，等待補兵畫面… (\(frameCount) 幀)"
+            isProcessing  = false
             return
         }
 

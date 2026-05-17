@@ -25,8 +25,8 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
             throw CaptureError.hearthstoneNotRunning
         }
         hearthstoneWindow = window
-        windowFrame = display.frame          // use display frame for full-screen accuracy
-        try await startStream(app: app, display: display)
+        windowFrame = display.frame
+        try await startStream(display: display)
     }
 
     func stop() {
@@ -84,15 +84,12 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
         return bundle.contains("hearthstone") || name.contains("hearthstone")
     }
 
-    // Capture the display filtered to only the Hearthstone process.
-    // This is the most reliable method for both windowed and full-screen modes.
-    private func startStream(app: SCRunningApplication, display: SCDisplay) async throws {
-        let filter = SCContentFilter(
-            display: display,
-            including: [app],
-            exceptingWindows: []
-        )
+    // Capture the full display — most reliable approach for full-screen games.
+    // App-based filters miss full-screen Spaces; capturing the whole display does not.
+    private func startStream(display: SCDisplay) async throws {
+        let filter = SCContentFilter(display: display, excludingWindows: [])
         let config = SCStreamConfiguration()
+        // Use the display's logical (point) dimensions for the frame size.
         config.width  = Int(display.frame.width)
         config.height = Int(display.frame.height)
         config.minimumFrameInterval = CMTime(value: 1, timescale: 4)   // 4 fps
