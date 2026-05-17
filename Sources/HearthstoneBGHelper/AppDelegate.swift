@@ -24,14 +24,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startCapture() async {
         do {
             try await capture.requestPermissionAndStart()
+            tracker.captureDidStart()
             setupOverlay(on: capture.captureScreen)
 
             capture.onNewFrame = { [weak self] image, frame in
                 Task { @MainActor in
-                    // frame here is the SCCapture display rect used only for OCR coordinate mapping.
-                    // The overlay window stays pinned to the screen frame set at startup.
                     self?.tracker.processFrame(image, windowFrame: frame)
                 }
+            }
+
+            capture.onStreamError = { [weak self] error in
+                Task { @MainActor in self?.showStreamError(error) }
             }
         } catch {
             showPermissionError(error)
@@ -101,23 +104,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showPermissionError(_ error: Error) {
-        // "Game not found" is retryable – don't quit, just show a notice and poll.
-        if case ScreenCaptureService.CaptureError.hearthstoneNotRunning = error {
-            let alert = NSAlert()
-            alert.messageText = "找不到爐石傳說視窗"
-            alert.informativeText = "請確認遊戲已開啟並進入英雄戰場。\n助手將每 5 秒自動重試。"
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "立即重試")
-            alert.addButton(withTitle: "結束")
-            if alert.runModal() == .alertFirstButtonReturn {
-                Task { await self.startCapture() }
-            } else {
-                NSApp.terminate(nil)
-            }
-            return
-        }
-
-        // Actual SCStream / permission error – direct user to System Settings.
         let alert = NSAlert()
         alert.messageText = "無法啟動螢幕擷取"
         alert.informativeText = "請至「系統設定 → 隱私權與安全性 → 螢幕錄製」授予本程式權限，然後重新啟動。\n\n錯誤：\(error.localizedDescription)"
@@ -125,9 +111,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "開啟系統設定")
         alert.addButton(withTitle: "結束")
         if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+            NSWorkspace.shared.open(
+                URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
+            )
         }
         NSApp.terminate(nil)
+    }
+
+    private func showStreamError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "串流中斷"
+        alert.informativeText = "螢幕擷取串流已停止：\(error.localizedDescription)\n\n是否重新啟動擷取？"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "重新啟動")
+        alert.addButton(withTitle: "結束")
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task { await self.startCapture() }
+        } else {
+            NSApp.terminate(nil)
+        }
     }
 }
 
