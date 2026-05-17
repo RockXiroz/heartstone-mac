@@ -1,7 +1,6 @@
 import Foundation
 import ScreenCaptureKit
 import CoreGraphics
-import CoreImage
 
 // Captures frames from the primary display using ScreenCaptureKit (macOS 12.3+).
 // Does NOT require Hearthstone to be detected — starts immediately and lets the OCR
@@ -11,7 +10,6 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
 
     static let shared = ScreenCaptureService()
 
-    nonisolated(unsafe) private let ciContext = CIContext()
     private var stream: SCStream?
     private(set) var latestFrame: CGImage?
     private(set) var windowFrame: CGRect = .zero
@@ -96,10 +94,36 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
         guard type == .screen,
               let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
-        // CIContext.createCGImage copies pixel data before returning, so it is safe
-        // to use after the sample buffer is released — no dangling pointer.
-        let ci = CIImage(cvPixelBuffer: imageBuffer)
-        guard let image = ciContext.createCGImage(ci, from: ci.extent) else { return }
+        CVPixelBufferLockBaseAddress(imageBuffer, .readOnly)
+
+        let width       = CVPixelBufferGetWidth(imageBuffer)
+        let height      = CVPixelBufferGetHeight(imageBuffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer)
+
+        guard let base = CVPixelBufferGetBaseAddress(imageBuffer) else {
+            CVPixelBufferUnlockBaseAddress(imageBuffer, .readOnly)
+            return
+        }
+
+        // Copy all pixel bytes into our own Data before unlocking the buffer.
+        // CGDataProvider(data:) keeps a strong reference to this Data, so the
+        // CGImage is valid indefinitely — no dangling pointer.
+        let data = Data(bytes: base, count: bytesPerRow * height)
+        CVPixelBufferUnlockBaseAddress(imageBuffer, .readOnly)
+
+        guard let provider = CGDataProvider(data: data as CFData),
+              let image = CGImage(
+                width: width, height: height,
+                bitsPerComponent: 8, bitsPerPixel: 32,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue:
+                    CGImageAlphaInfo.noneSkipFirst.rawValue |
+                    CGBitmapInfo.byteOrder32Little.rawValue),
+                provider: provider,
+                decode: nil, shouldInterpolate: false,
+                intent: .defaultIntent
+              ) else { return }
 
         Task { @MainActor in
             self.latestFrame = image
