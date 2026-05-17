@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var overlayWindow: OverlayWindow?
     private var overlayVC: OverlayViewController?
+    private var hudWindow: HUDWindow?
     private let capture = ScreenCaptureService.shared
     private let tracker = GameStateTracker.shared
     private var statusItem: NSStatusItem?
@@ -40,11 +41,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: – Overlay setup
 
     private func setupOverlay(on screen: NSScreen) {
-        let window = OverlayWindow(screen: screen)
+        // HUD – always-visible recommendation panel in the top-right corner
+        let hud = HUDWindow(screen: screen)
+        hudWindow = hud
+
+        // Transparent arrow overlay covering the full game screen
+        let overlay = OverlayWindow(screen: screen)
         let vc = OverlayViewController()
-        window.contentViewController = vc
-        window.orderFrontRegardless()
-        overlayWindow = window
+        overlay.contentViewController = vc
+        overlay.orderFrontRegardless()
+        overlayWindow = overlay
         overlayVC = vc
     }
 

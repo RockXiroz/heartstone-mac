@@ -1,6 +1,7 @@
 import AppKit
 
-// A borderless, click-through panel that floats above Hearthstone on the same screen.
+// Full-screen transparent panel for drawing arrows over the game.
+// Mouse events pass through so the game remains fully playable.
 final class OverlayWindow: NSPanel {
 
     init(screen: NSScreen) {
@@ -10,14 +11,11 @@ final class OverlayWindow: NSPanel {
             backing: .buffered,
             defer: false
         )
-
-        // Use the overlay level (102) rather than screenSaver (1000).
-        // kCGOverlayWindowLevel correctly joins full-screen app Spaces on macOS 13+.
-        level            = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.overlayWindow)))
-        backgroundColor  = .clear
-        isOpaque         = false
-        hasShadow        = false
-        ignoresMouseEvents  = true          // all clicks pass through to the game
+        level               = .screenSaver
+        backgroundColor     = .clear
+        isOpaque            = false
+        hasShadow           = false
+        ignoresMouseEvents  = true
         isReleasedWhenClosed = false
         collectionBehavior  = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         isMovableByWindowBackground = false
