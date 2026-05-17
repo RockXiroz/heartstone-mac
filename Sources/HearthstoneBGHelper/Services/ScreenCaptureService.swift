@@ -1,6 +1,7 @@
 import Foundation
 import ScreenCaptureKit
 import CoreGraphics
+import CoreImage
 
 // Captures frames from the Hearthstone game window using ScreenCaptureKit (macOS 12.3+).
 @MainActor
@@ -8,6 +9,7 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
 
     static let shared = ScreenCaptureService()
 
+    nonisolated(unsafe) private let ciContext = CIContext()
     private var stream: SCStream?
     private var hearthstoneWindow: SCWindow?
     private(set) var latestFrame: CGImage?
@@ -90,8 +92,8 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let config = SCStreamConfiguration()
         // Use the display's logical (point) dimensions for the frame size.
-        config.width  = Int(display.frame.width)
-        config.height = Int(display.frame.height)
+        config.width  = display.width
+        config.height = display.height
         config.minimumFrameInterval = CMTime(value: 1, timescale: 4)   // 4 fps
         config.queueDepth = 2
         config.pixelFormat = kCVPixelFormatType_32BGRA
@@ -108,24 +110,8 @@ final class ScreenCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
         guard type == .screen,
               let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
-        CVPixelBufferLockBaseAddress(imageBuffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(imageBuffer, .readOnly) }
-
-        let width  = CVPixelBufferGetWidth(imageBuffer)
-        let height = CVPixelBufferGetHeight(imageBuffer)
-        let bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer)
-        guard let base = CVPixelBufferGetBaseAddress(imageBuffer) else { return }
-
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
-        guard let context = CGContext(
-            data: base,
-            width: width, height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: bytesPerRow,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo.rawValue
-        ), let image = context.makeImage() else { return }
+        let ci = CIImage(cvPixelBuffer: imageBuffer)
+        guard let image = ciContext.createCGImage(ci, from: ci.extent) else { return }
 
         Task { @MainActor in
             self.latestFrame = image
