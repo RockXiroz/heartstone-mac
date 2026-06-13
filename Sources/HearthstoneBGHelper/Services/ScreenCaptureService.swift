@@ -73,6 +73,10 @@ final class ScreenCaptureService: NSObject {
     }
 
     private func captureOnce() async throws {
+        // ScreenCaptureService is currently unused (card detection uses Power.log).
+        // SCScreenshotManager requires macOS 14+; guard here to keep the project
+        // targeting macOS 13.
+        guard #available(macOS 14.0, *) else { return }
         guard let filter, let config else { return }
         let image = try await SCScreenshotManager.captureImage(
             contentFilter: filter, configuration: config
