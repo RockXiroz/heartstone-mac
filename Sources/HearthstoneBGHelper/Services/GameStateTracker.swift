@@ -19,15 +19,15 @@ final class GameStateTracker: ObservableObject {
     private var frameCount   = 0
     private var idleTimer: Timer?
 
-    // Called by AppDelegate once the SCStream successfully starts.
+    // Called by AppDelegate once screenshot polling starts.
     func captureDidStart() {
-        statusMessage = "🎥 擷取已啟動，掃描畫面中…"
-        // If no frame arrives within 6 s, show a hint about permissions.
+        statusMessage = "📸 擷取已啟動，掃描畫面中…"
+        // If no frame arrives within 4 s, show a hint about permissions.
         idleTimer?.invalidate()
-        idleTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: false) { [weak self] _ in
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.frameCount == 0 else { return }
-                self.statusMessage = "⚠️ 已啟動但未收到畫面，請至「系統設定 → 隱私與安全 → 螢幕錄製」確認授權。"
+                self.statusMessage = "⚠️ 已啟動但未收到畫面，請至「系統設定 → 隱私與安全 → 螢幕錄製」確認授權後重新啟動。"
             }
         }
     }
