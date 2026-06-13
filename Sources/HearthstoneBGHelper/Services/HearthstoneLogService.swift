@@ -32,11 +32,13 @@ final class HearthstoneLogService {
     private var logDirCandidates: [URL] {
         [
             home.appendingPathComponent("Library/Logs/Hearthstone"),
-            // Older installs wrote alongside the app bundle.
-            URL(fileURLWithPath: "/Applications/Hearthstone/Logs")
+            home.appendingPathComponent("Library/Application Support/Blizzard/Hearthstone/Logs"),
+            URL(fileURLWithPath: "/Applications/Hearthstone/Logs"),
+            URL(fileURLWithPath: "/Applications/Hearthstone/Logs/Hearthstone")
         ]
     }
 
+    // Hearthstone reads log.config from this path on launch.
     private var logConfigURL: URL {
         home.appendingPathComponent("Library/Preferences/Blizzard/Hearthstone/log.config")
     }
@@ -44,7 +46,7 @@ final class HearthstoneLogService {
     // MARK: – Public
 
     func start() {
-        installLogConfigIfNeeded()
+        installLogConfig()
         onStatus?("🔍 搜尋 Hearthstone 紀錄檔…")
         // Power.log may not exist until the next game launch; poll until it appears.
         pollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
@@ -61,17 +63,24 @@ final class HearthstoneLogService {
 
     // MARK: – Config install
 
-    private func installLogConfigIfNeeded() {
+    private func installLogConfig() {
         let dir = logConfigURL.deletingLastPathComponent()
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        do {
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        } catch {
+            onStatus?("❌ 無法建立設定資料夾：\(dir.path)")
+            print("[LogService] mkdir failed: \(error)")
+        }
 
-        // Categories required for Battlegrounds state tracking.
         let required = ["Power", "Zone", "LoadingScreen", "Bob", "Asset"]
         let existing = (try? String(contentsOf: logConfigURL, encoding: .utf8)) ?? ""
-
-        // Only rewrite if a required section is missing (avoid clobbering user tweaks).
         let missing = required.filter { !existing.contains("[\($0)]") }
-        guard !missing.isEmpty else { return }
+
+        if missing.isEmpty {
+            onStatus?("✅ 紀錄設定已存在：\(logConfigURL.path)")
+            print("[LogService] log.config already has all sections at \(logConfigURL.path)")
+            return
+        }
 
         var config = existing
         for section in missing {
@@ -86,8 +95,22 @@ final class HearthstoneLogService {
 
             """
         }
-        try? config.write(to: logConfigURL, atomically: true, encoding: .utf8)
-        onStatus?("⚙️ 已安裝紀錄設定，請重新啟動 Hearthstone 以套用。")
+
+        do {
+            try config.write(to: logConfigURL, atomically: true, encoding: .utf8)
+            // Verify by reading back.
+            let verify = (try? String(contentsOf: logConfigURL, encoding: .utf8)) ?? ""
+            let ok = required.allSatisfy { verify.contains("[\($0)]") }
+            if ok {
+                onStatus?("⚙️ 已寫入紀錄設定，請完全結束並重新啟動 Hearthstone。")
+                print("[LogService] Wrote log.config to \(logConfigURL.path)")
+            } else {
+                onStatus?("⚠️ 設定寫入後驗證失敗，請手動建立 log.config。")
+            }
+        } catch {
+            onStatus?("❌ 無法寫入 log.config：\(error.localizedDescription)")
+            print("[LogService] write failed: \(error)")
+        }
     }
 
     // MARK: – Tail loop
@@ -95,12 +118,24 @@ final class HearthstoneLogService {
     private func tick() {
         if handle == nil {
             guard let url = locatePowerLog() else {
-                onStatus?("⏳ 等待 Hearthstone 產生 Power.log（請確認已重新啟動遊戲）…")
+                reportSearchPaths()
                 return
             }
             openTail(at: url)
         }
         readAppended()
+    }
+
+    private func reportSearchPaths() {
+        // Report which candidate directories exist, to help the user diagnose.
+        let existing = logDirCandidates.filter { fm.fileExists(atPath: $0.path) }
+        if existing.isEmpty {
+            onStatus?("⏳ 找不到 Hearthstone 紀錄資料夾。請確認已寫入 log.config 並重新啟動遊戲。")
+            print("[LogService] No log dir found. Searched: \(logDirCandidates.map(\.path))")
+        } else {
+            onStatus?("⏳ 找到紀錄資料夾但尚無 Power.log，請進入一場對戰…")
+            print("[LogService] Log dirs exist but no Power.log yet: \(existing.map(\.path))")
+        }
     }
 
     private func locatePowerLog() -> URL? {
