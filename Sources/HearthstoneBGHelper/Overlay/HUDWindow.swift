@@ -87,7 +87,7 @@ final class HUDWindow: NSPanel {
         freezeLabel.isHidden = true
         cv.addSubview(freezeLabel)
 
-        statusLabel.stringValue  = "⏳ 啟動擷取中…"
+        statusLabel.stringValue  = "⏳ 啟動中…"
         cardLabel.stringValue    = "—"
         winRateLabel.stringValue = ""
     }

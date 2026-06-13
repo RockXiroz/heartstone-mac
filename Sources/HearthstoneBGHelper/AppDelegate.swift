@@ -6,39 +6,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayWindow: OverlayWindow?
     private var overlayVC: OverlayViewController?
     private var hudWindow: HUDWindow?
-    private let capture = ScreenCaptureService.shared
     private let tracker = GameStateTracker.shared
+    private let logService = HearthstoneLogService.shared
+    private let parser = PowerLogParser()
     private var statusItem: NSStatusItem?
 
     // MARK: – Application lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBarItem()
-        Task { await startCapture() }
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        tracker.screenSize = screen.frame.size
+        setupOverlay(on: screen)
+        startLogTracking()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }
 
-    // MARK: – Screen capture
+    // MARK: – Log tracking pipeline
 
-    private func startCapture() async {
-        do {
-            try await capture.requestPermissionAndStart()
-            tracker.captureDidStart()
-            setupOverlay(on: capture.captureScreen)
-
-            capture.onNewFrame = { [weak self] image, frame in
-                Task { @MainActor in
-                    self?.tracker.processFrame(image, windowFrame: frame)
-                }
-            }
-
-            capture.onStreamError = { [weak self] error in
-                Task { @MainActor in self?.showStreamError(error) }
-            }
-        } catch {
-            showPermissionError(error)
+    private func startLogTracking() {
+        // Power.log line → parser → shop card IDs → recommendation
+        parser.onShopChanged = { [weak self] cardIDs in
+            Task { @MainActor in self?.tracker.updateShop(cardIDs: cardIDs) }
         }
+        parser.onDiagnostic = { msg in
+            print("[Parser] \(msg)")
+        }
+
+        logService.onLine = { [weak self] line in
+            Task { @MainActor in self?.parser.ingest(line) }
+        }
+        logService.onStatus = { [weak self] status in
+            Task { @MainActor in self?.tracker.logStatus(status) }
+        }
+        logService.start()
     }
 
     // MARK: – Overlay setup
@@ -100,35 +102,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showTribeConfig() {
         TribeConfigWindow.show { [weak self] tribes in
             self?.tracker.setActiveTribePool(tribes)
-        }
-    }
-
-    private func showPermissionError(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = "無法啟動螢幕擷取"
-        alert.informativeText = "請至「系統設定 → 隱私權與安全性 → 螢幕錄製」授予本程式權限，然後重新啟動。\n\n錯誤：\(error.localizedDescription)"
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "開啟系統設定")
-        alert.addButton(withTitle: "結束")
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(
-                URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
-            )
-        }
-        NSApp.terminate(nil)
-    }
-
-    private func showStreamError(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = "串流中斷"
-        alert.informativeText = "螢幕擷取串流已停止：\(error.localizedDescription)\n\n是否重新啟動擷取？"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "重新啟動")
-        alert.addButton(withTitle: "結束")
-        if alert.runModal() == .alertFirstButtonReturn {
-            Task { await self.startCapture() }
-        } else {
-            NSApp.terminate(nil)
         }
     }
 }
