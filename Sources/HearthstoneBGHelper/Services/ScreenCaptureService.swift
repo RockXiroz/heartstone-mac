@@ -35,8 +35,8 @@ final class ScreenCaptureService: NSObject {
         let outH = max(720,  pixH / 2)
 
         let props: CFDictionary = [
-            kCGDisplayStreamMinimumFrameTime: Double(1.0 / 4.0),  // 4 fps
-            kCGDisplayStreamShowCursor:       false,
+            CGDisplayStream.minimumFrameTime: Double(1.0 / 4.0),  // 4 fps
+            CGDisplayStream.showCursor:       false,
         ] as [String: Any] as CFDictionary
 
         let stream = CGDisplayStream(
@@ -64,25 +64,29 @@ final class ScreenCaptureService: NSObject {
     // MARK: – Frame handler
 
     private func handleSurface(_ surface: IOSurface) {
-        // CGImage(ioSurface:) references the surface memory directly.
-        // Draw it into an offscreen CGContext to make an independent copy
-        // before the surface is recycled.
-        guard let src = CGImage(ioSurface: surface) else { return }
+        // Lock → copy all bytes into owned Data → unlock.
+        // CGDataProvider(data:) retains our Data, so the resulting CGImage
+        // is safe to use after the surface is recycled.
+        surface.lock(options: .readOnly, seed: nil)
+        let w           = surface.width
+        let h           = surface.height
+        let bytesPerRow = surface.bytesPerRow
+        let data        = Data(bytes: surface.baseAddress, count: bytesPerRow * h)
+        surface.unlock(options: .readOnly, seed: nil)
 
-        let cs = CGColorSpaceCreateDeviceRGB()
-        let bi = CGBitmapInfo(rawValue:
-            CGImageAlphaInfo.noneSkipFirst.rawValue |
-            CGBitmapInfo.byteOrder32Little.rawValue)
-
-        guard let ctx = CGContext(
-            data: nil,
-            width: src.width, height: src.height,
-            bitsPerComponent: 8, bytesPerRow: 0,
-            space: cs, bitmapInfo: bi.rawValue
-        ) else { return }
-
-        ctx.draw(src, in: CGRect(x: 0, y: 0, width: src.width, height: src.height))
-        guard let image = ctx.makeImage() else { return }
+        guard let provider = CGDataProvider(data: data as CFData),
+              let image = CGImage(
+                width: w, height: h,
+                bitsPerComponent: 8, bitsPerPixel: 32,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue:
+                    CGImageAlphaInfo.noneSkipFirst.rawValue |
+                    CGBitmapInfo.byteOrder32Little.rawValue),
+                provider: provider,
+                decode: nil, shouldInterpolate: false,
+                intent: .defaultIntent
+              ) else { return }
 
         Task { @MainActor in
             self.latestFrame = image
