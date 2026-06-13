@@ -19,6 +19,9 @@ let package = Package(
                 .process("Resources/BattlegroundsCards.json"),
                 .process("Resources/TribeData.json")
             ],
+            linkerSettings: [
+                .linkedFramework("IOSurface")
+            ],
             swiftSettings: []
         )
     ]
