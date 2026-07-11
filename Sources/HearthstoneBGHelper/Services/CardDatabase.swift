@@ -22,6 +22,21 @@ final class CardDatabase {
     }
 
     var allCards: [Card] { Array(cards.values) }
+    var count: Int { cards.count }
+
+    // Merge remotely fetched cards (HearthstoneJSON). Remote entries win over
+    // the small bundled bootstrap set, except curated synergy tags and win-rate
+    // priors are kept when the remote copy has none.
+    func merge(_ remote: [Card]) {
+        for var card in remote {
+            if let existing = cards[card.id] {
+                if card.synergyTags.isEmpty { card.synergyTags = existing.synergyTags }
+                card.baseWinRate  = existing.baseWinRate
+                card.avgPlacement = existing.avgPlacement
+            }
+            register(card)
+        }
+    }
 
     // MARK: – Loading
 

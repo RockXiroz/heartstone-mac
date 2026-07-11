@@ -3,8 +3,7 @@ import CoreGraphics
 import AppKit
 
 // Maintains the live game state from Power.log parsing and produces shop
-// recommendations. Card identity comes from the game log (exact card IDs),
-// not screen OCR — far more reliable.
+// recommendations. Card identity comes from the game log (exact card IDs).
 @MainActor
 final class GameStateTracker: ObservableObject {
 
@@ -19,27 +18,53 @@ final class GameStateTracker: ObservableObject {
     private let winRate = WinRateService.shared
 
     // Screen geometry used to place arrows over the on-screen shop slots.
-    // Shop minion row in the recruit phase sits in the upper-middle of the screen.
     var screenSize: CGSize = NSScreen.main?.frame.size ?? CGSize(width: 1920, height: 1080)
+
+    private var lastShopIDs: [Int: String] = [:]
+    private var recommendTask: Task<Void, Never>?
 
     // MARK: – Log-driven status
 
     func logStatus(_ message: String) {
+        // Don't let background status overwrite an active recommendation.
+        guard recommendation == nil else { return }
         statusMessage = message
+    }
+
+    func phaseChanged(isShopping: Bool) {
+        if !isShopping {
+            recommendation = nil
+            statusMessage = "⚔️ 戰鬥階段，等待下一輪補兵…"
+        }
+    }
+
+    // Called when the remote card database finishes loading — re-resolve the
+    // current shop so placeholder names become real cards.
+    func cardDatabaseDidUpdate() {
+        statusMessage = "📚 卡牌資料庫已載入（\(db.count) 張）"
+        if !lastShopIDs.isEmpty {
+            updateShop(cardIDs: lastShopIDs)
+        }
     }
 
     // MARK: – Shop update (from PowerLogParser)
 
     func updateShop(cardIDs: [Int: String]) {
-        let slots: [ShopSlot] = cardIDs.sorted { $0.key < $1.key }.compactMap { (index, cardId) in
-            guard let card = db.findCard(byID: cardId) else { return nil }
-            return ShopSlot(id: index, card: card, screenRegion: slotRect(index: index))
+        lastShopIDs = cardIDs
+
+        guard !cardIDs.isEmpty else {
+            recommendation = nil
+            statusMessage = "⚔️ 戰鬥 / 等待階段（商店無小兵）"
+            return
         }
 
-        guard !slots.isEmpty else {
-            recommendation = nil
-            statusMessage = "⚔️ 戰鬥 / 選擇階段（商店無小兵）"
-            return
+        let ordered = cardIDs.sorted { $0.key < $1.key }
+        let slotCount = ordered.count
+        let slots: [ShopSlot] = ordered.enumerated().map { (position, entry) in
+            let (slotIndex, cardId) = entry
+            let card = db.findCard(byID: cardId) ?? .placeholder(id: cardId)
+            return ShopSlot(id: slotIndex, card: card,
+                            screenRegion: slotRect(position: position, of: slotCount))
         }
 
         state.shopCards = slots
@@ -48,14 +73,18 @@ final class GameStateTracker: ObservableObject {
         }
 
         isProcessing = true
-        statusMessage = "分析中…（\(slots.count) 張卡）"
+        statusMessage = "🔎 分析中…（\(slots.count) 張卡）"
 
-        Task {
-            let rec = await winRate.recommend(for: state)
-            recommendation = rec
+        recommendTask?.cancel()
+        let snapshot = state
+        recommendTask = Task { [weak self] in
+            guard let self else { return }
+            let rec = await self.winRate.recommend(for: snapshot)
+            guard !Task.isCancelled else { return }
+            self.recommendation = rec
             let best = rec.bestPick
-            statusMessage = "推薦：\(best.card.name)（\(best.winRatePercent)% 勝率）"
-            isProcessing = false
+            self.statusMessage = "推薦：\(best.card.name)（\(best.winRatePercent)% 勝率）"
+            self.isProcessing = false
         }
     }
 
@@ -79,17 +108,17 @@ final class GameStateTracker: ObservableObject {
 
     // MARK: – Shop slot geometry (top-left origin; OverlayVC flips to AppKit coords)
 
-    private func slotRect(index: Int) -> CGRect {
-        let firstX: CGFloat = 0.30   // centre of slot 0
-        let lastX:  CGFloat = 0.70   // centre of slot 6
-        let slotW:  CGFloat = 0.075
-        let rowY:   CGFloat = 0.38   // top of minion row
-        let rowH:   CGFloat = 0.20
+    // The shop row is horizontally centred on the board; slot spacing is ~6.6%
+    // of screen width. Position is the card's index within the visible row.
+    private func slotRect(position: Int, of count: Int) -> CGRect {
+        let spacing: CGFloat = 0.066
+        let slotW:   CGFloat = 0.062
+        let rowY:    CGFloat = 0.26
+        let rowH:    CGFloat = 0.22
 
-        let step = (lastX - firstX) / 6.0
-        let cx = firstX + CGFloat(index) * step
+        let centerX = 0.5 + (CGFloat(position) - CGFloat(count - 1) / 2) * spacing
         return CGRect(
-            x: (cx - slotW / 2) * screenSize.width,
+            x: (centerX - slotW / 2) * screenSize.width,
             y: rowY * screenSize.height,
             width: slotW * screenSize.width,
             height: rowH * screenSize.height

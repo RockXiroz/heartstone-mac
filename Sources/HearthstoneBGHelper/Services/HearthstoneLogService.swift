@@ -13,9 +13,9 @@ final class HearthstoneLogService {
     static let shared = HearthstoneLogService()
 
     /// Emits each new line appended to Power.log.
-    var onLine: ((String) -> Void)?
+    var onLine: (@MainActor (String) -> Void)?
     /// Emits diagnostic status (config installed, waiting for log, tailing…).
-    var onStatus: ((String) -> Void)?
+    var onStatus: (@MainActor (String) -> Void)?
 
     private var handle: FileHandle?
     private var offset: UInt64 = 0
@@ -166,9 +166,13 @@ final class HearthstoneLogService {
         guard let h = try? FileHandle(forReadingFrom: url) else { return }
         handle = h
         currentLogURL = url
-        // Start from the end — we only care about the current/upcoming game.
-        let end = (try? h.seekToEnd()) ?? 0
-        offset = end
+        // Replay the file from the start (bounded) so the current game's state
+        // is reconstructed — starting at the end would miss the shop that is
+        // already on screen when the helper launches.
+        let attrs = try? fm.attributesOfItem(atPath: url.path)
+        let size = (attrs?[.size] as? NSNumber)?.uint64Value ?? 0
+        let maxReplay: UInt64 = 30 * 1024 * 1024
+        offset = size > maxReplay ? size - maxReplay : 0
         onStatus?("📖 正在讀取 \(url.lastPathComponent)（即時追蹤中）")
     }
 

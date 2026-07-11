@@ -9,7 +9,7 @@ struct Card: Codable, Identifiable, Hashable {
     let health: Int
     let keywords: [Keyword]
     let text: String
-    let synergyTags: [SynergyTag]
+    var synergyTags: [SynergyTag]
 
     var primaryTribe: Tribe { tribes.first ?? .neutral }
 
@@ -65,6 +65,14 @@ struct Card: Codable, Identifiable, Hashable {
 }
 
 extension Card {
+    // Minimal stand-in for a card ID not yet in the database, so the shop can
+    // still be shown while the full card list downloads.
+    static func placeholder(id: String) -> Card {
+        Card(id: id, name: id, tribes: [.neutral], tavernTier: 1,
+             attack: 0, health: 0, keywords: [], text: "",
+             synergyTags: [], baseWinRate: 0.5, avgPlacement: 4.0)
+    }
+
     var hasKeyword: (Card.Keyword) -> Bool {
         { [keywords] kw in keywords.contains(kw) }
     }

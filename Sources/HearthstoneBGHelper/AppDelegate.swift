@@ -26,21 +26,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: – Log tracking pipeline
 
     private func startLogTracking() {
-        // Power.log line → parser → shop card IDs → recommendation
+        // Power.log line → parser → shop card IDs → recommendation.
+        // All components are @MainActor; synchronous calls keep line ordering intact.
         parser.onShopChanged = { [weak self] cardIDs in
-            Task { @MainActor in self?.tracker.updateShop(cardIDs: cardIDs) }
+            self?.tracker.updateShop(cardIDs: cardIDs)
         }
-        parser.onDiagnostic = { msg in
+        parser.onPhaseChanged = { [weak self] isShopping in
+            self?.tracker.phaseChanged(isShopping: isShopping)
+        }
+        parser.onDiagnostic = { [weak self] msg in
             print("[Parser] \(msg)")
+            self?.tracker.logStatus(msg)
         }
 
         logService.onLine = { [weak self] line in
-            Task { @MainActor in self?.parser.ingest(line) }
+            self?.parser.ingest(line)
         }
         logService.onStatus = { [weak self] status in
-            Task { @MainActor in self?.tracker.logStatus(status) }
+            self?.tracker.logStatus(status)
         }
         logService.start()
+
+        // Download the full Battlegrounds card list (zh-TW names) in the background.
+        Task { [weak self] in
+            let cards = await RemoteCardService.shared.loadBattlegroundsCards()
+            guard !cards.isEmpty else {
+                print("[RemoteCardService] card list unavailable — using bundled fallback")
+                return
+            }
+            CardDatabase.shared.merge(cards)
+            self?.tracker.cardDatabaseDidUpdate()
+        }
     }
 
     // MARK: – Overlay setup
