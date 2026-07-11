@@ -105,8 +105,8 @@ final class HUDWindow: NSPanel {
     // MARK: – Timer-based refresh (avoids Combine actor-isolation subtleties)
 
     private func startTimer() {
-        // Timer fires on the main run loop; the Task hops to @MainActor to read tracker.
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
+        // 0.15s keeps hover feedback responsive; the Task hops to @MainActor.
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.refresh() }
         }
     }
@@ -124,15 +124,21 @@ final class HUDWindow: NSPanel {
             return
         }
 
-        let best = rec.bestPick
-        let (r, g, b) = best.tier.color
-        cardLabel.stringValue    = best.card.name
-        winRateLabel.stringValue = "\(best.winRatePercent)%"
+        // Hovering a shop card shows that card's analysis; otherwise the best pick.
+        let hovered = hoveredPick(in: rec)
+        let shown   = hovered ?? rec.bestPick
+        let isBest  = shown.shopSlotIndex == rec.bestPick.shopSlotIndex
+
+        let (r, g, b) = shown.tier.color
+        let prefix = hovered != nil ? "👉 " : ""
+        let star   = isBest ? " ⭐" : ""
+        cardLabel.stringValue    = "\(prefix)\(shown.card.name)\(star)"
+        winRateLabel.stringValue = "\(shown.winRatePercent)%"
         winRateLabel.textColor   = NSColor(red: r, green: g, blue: b, alpha: 1)
 
         for (i, label) in reasonLabels.enumerated() {
-            label.stringValue = i < best.topReasons.count
-                ? "• \(best.topReasons[i].text)" : ""
+            label.stringValue = i < shown.topReasons.count
+                ? "• \(shown.topReasons[i].text)" : ""
         }
 
         if rec.shouldFreeze, let reason = rec.freezeReason {
@@ -140,6 +146,26 @@ final class HUDWindow: NSPanel {
             freezeLabel.isHidden = false
         } else {
             freezeLabel.isHidden = true
+        }
+    }
+
+    // Maps the global mouse position to a shop slot. Slot regions use global
+    // top-left origin (CGWindow coords); NSEvent.mouseLocation uses bottom-left
+    // origin relative to the primary screen — flip against the primary height.
+    @MainActor
+    private func hoveredPick(in rec: ShopRecommendation) -> Recommendation? {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 1080
+        let mouse = NSEvent.mouseLocation
+
+        return rec.allPicks.first { pick in
+            let slot = pick.shopSlotRegion
+            let flipped = NSRect(
+                x: slot.minX,
+                y: primaryHeight - slot.maxY,
+                width: slot.width,
+                height: slot.height
+            ).insetBy(dx: -8, dy: -20)   // generous margin: geometry is approximate
+            return flipped.contains(mouse)
         }
     }
 

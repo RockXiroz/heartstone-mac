@@ -58,13 +58,17 @@ final class GameStateTracker: ObservableObject {
             return
         }
 
+        // Anchor slot geometry to the actual game window (may be windowed).
+        let gameFrame = GameWindowLocator.findHearthstoneWindow()
+            ?? CGRect(origin: .zero, size: screenSize)
+
         let ordered = cardIDs.sorted { $0.key < $1.key }
         let slotCount = ordered.count
         let slots: [ShopSlot] = ordered.enumerated().map { (position, entry) in
             let (slotIndex, cardId) = entry
             let card = db.findCard(byID: cardId) ?? .placeholder(id: cardId)
             return ShopSlot(id: slotIndex, card: card,
-                            screenRegion: slotRect(position: position, of: slotCount))
+                            screenRegion: slotRect(position: position, of: slotCount, in: gameFrame))
         }
 
         state.shopCards = slots
@@ -106,11 +110,11 @@ final class GameStateTracker: ObservableObject {
         state.activeTribePool = ActiveTribePool(tribes: tribes)
     }
 
-    // MARK: – Shop slot geometry (top-left origin; OverlayVC flips to AppKit coords)
+    // MARK: – Shop slot geometry (global top-left origin, relative to game window)
 
     // The shop row is horizontally centred on the board; slot spacing is ~6.6%
-    // of screen width. Position is the card's index within the visible row.
-    private func slotRect(position: Int, of count: Int) -> CGRect {
+    // of window width. Position is the card's index within the visible row.
+    private func slotRect(position: Int, of count: Int, in frame: CGRect) -> CGRect {
         let spacing: CGFloat = 0.066
         let slotW:   CGFloat = 0.062
         let rowY:    CGFloat = 0.26
@@ -118,10 +122,10 @@ final class GameStateTracker: ObservableObject {
 
         let centerX = 0.5 + (CGFloat(position) - CGFloat(count - 1) / 2) * spacing
         return CGRect(
-            x: (centerX - slotW / 2) * screenSize.width,
-            y: rowY * screenSize.height,
-            width: slotW * screenSize.width,
-            height: rowH * screenSize.height
+            x: frame.minX + (centerX - slotW / 2) * frame.width,
+            y: frame.minY + rowY * frame.height,
+            width: slotW * frame.width,
+            height: rowH * frame.height
         )
     }
 }
