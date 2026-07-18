@@ -91,7 +91,7 @@ actor HSReplayAPIService {
     }
 
     private func loadBundledFallback() -> [String: MinionStats] {
-        guard let url = Bundle.main.url(forResource: "BattlegroundsCards", withExtension: "json"),
+        guard let url = Bundle.module.url(forResource: "BattlegroundsCards", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let cards = try? JSONDecoder().decode([BundledCard].self, from: data) else { return [:] }
         return Dictionary(uniqueKeysWithValues: cards.map { card in

@@ -9,10 +9,13 @@ final class GameStateTracker: ObservableObject {
 
     static let shared = GameStateTracker()
 
+    // Bump on every user-visible fix so the running build is identifiable in the HUD.
+    static let version = "v0.5"
+
     @Published private(set) var state          = GameState()
     @Published private(set) var recommendation: ShopRecommendation?
     @Published private(set) var isProcessing   = false
-    @Published private(set) var statusMessage  = "⏳ 啟動中…"
+    @Published private(set) var statusMessage  = "⏳ \(GameStateTracker.version) 啟動中…"
 
     private let db      = CardDatabase.shared
     private let winRate = WinRateService.shared
