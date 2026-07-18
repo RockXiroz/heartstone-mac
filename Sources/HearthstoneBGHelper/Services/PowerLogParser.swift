@@ -151,12 +151,24 @@ final class PowerLogParser {
             return
         }
 
-        // Entity=[entityName=... id=530 ...] — take the id from inside the bracket.
-        guard let bracket = bracketFields(in: line) else { return }
-        var e = entities[bracket.id] ?? Entity(id: bracket.id)
-        if !bracket.cardId.isEmpty { e.cardId = bracket.cardId }
+        // Entity=[entityName=... id=530 ...] — id from inside the bracket, OR
+        // Entity=530 — bare numeric id (common right after entity creation).
+        // Dropping the numeric form leaves stale zones → ghost shop minions.
+        let entityId: Int
+        var bracketCardId = ""
+        if let bracket = bracketFields(in: line) {
+            entityId = bracket.id
+            bracketCardId = bracket.cardId
+        } else if let numeric = intValue(after: "Entity=", in: line) {
+            entityId = numeric
+        } else {
+            return  // named entity (player battletag etc.) — not a minion
+        }
+
+        var e = entities[entityId] ?? Entity(id: entityId)
+        if !bracketCardId.isEmpty { e.cardId = bracketCardId }
         apply(tag: tag, value: value, to: &e)
-        entities[bracket.id] = e
+        entities[entityId] = e
         checkForBob(e)
         scheduleRecompute()
     }
@@ -203,11 +215,21 @@ final class PowerLogParser {
         // shop from the player's own board.
         guard let bob = bobControllerId else { return }
 
+        // During combat the opponent's warband shares Bob's controller seat.
+        // Bob's hero leaves PLAY for combat — require him present as a second
+        // phase signal in case BOARD_VISUAL_STATE was missed.
+        if let bobId = bobEntityId, let bobHero = entities[bobId],
+           !bobHero.zone.isEmpty, bobHero.zone != "PLAY" {
+            emitIfChanged([:])
+            return
+        }
+
         let minions = entities.values
             .filter {
                 $0.zone == "PLAY" &&
                 $0.controller == bob &&
                 $0.cardType == "MINION" &&
+                $0.zonePos >= 1 &&
                 $0.id != bobEntityId &&
                 !$0.cardId.isEmpty
             }

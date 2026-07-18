@@ -51,8 +51,9 @@ actor WinRateService {
         var score = 0.0
         var reasons: [Recommendation.ReasonItem] = []
 
-        // 1. Base win-rate from HSReplay data (weight: 35%)
-        let baseScore = stats?.normalizedScore ?? 0.35
+        // 1. Base win-rate from HSReplay data when available, else the card's
+        //    own prior (tier-derived for remote cards, curated for bundled ones)
+        let baseScore = stats?.normalizedScore ?? card.baseWinRate
         let baseContrib = baseScore * 0.35
         score += baseContrib
         if let s = stats {
@@ -130,6 +131,32 @@ actor WinRateService {
 
         // Clamp to [0, 1]
         score = max(0, min(1, score))
+
+        // Guarantee the HUD always has 3 reason lines — pad with card facts
+        // when no threshold-gated reason fired.
+        if reasons.count < 3 {
+            let tribeName = card.primaryTribe.displayName
+            reasons.append(.init(
+                icon: "info.circle",
+                text: "酒館 \(card.tavernTier) 星 · \(tribeName) · \(card.attack)/\(card.health)",
+                weight: 0.003
+            ))
+        }
+        if stats == nil, reasons.count < 3 {
+            reasons.append(.init(
+                icon: "wifi.slash",
+                text: "HSReplay 尚無此卡數據，使用基準評分",
+                weight: 0.002
+            ))
+        }
+        if reasons.count < 3 {
+            reasons.append(.init(
+                icon: "square.grid.2x2",
+                text: tribeContrib > 0.2 ? "與現有陣容有部分協同" : "與現有陣容協同有限，屬過渡選擇",
+                weight: 0.001
+            ))
+        }
+
         return (score, reasons)
     }
 
