@@ -235,8 +235,10 @@ final class PowerLogParser {
             }
             .sorted { $0.zonePos < $1.zonePos }
 
+        // Key by the REAL zonePos (1-based): bought minions leave gaps that the
+        // game does not re-centre, so visual position must come from zonePos.
         var shop: [Int: String] = [:]
-        for (i, e) in minions.prefix(7).enumerated() { shop[i] = e.cardId }
+        for e in minions.prefix(7) { shop[e.zonePos] = e.cardId }
         emitIfChanged(shop)
     }
 

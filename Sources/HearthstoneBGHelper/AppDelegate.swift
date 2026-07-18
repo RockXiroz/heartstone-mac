@@ -88,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "關於", action: #selector(showAbout), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "設定種族池…", action: #selector(showTribeConfig), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "校準卡片位置…", action: #selector(startCalibration), keyEquivalent: "k"))
         menu.addItem(NSMenuItem(title: "顯示/隱藏 位置校準框", action: #selector(toggleDebugFrames), keyEquivalent: "d"))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "結束", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -124,6 +125,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func toggleDebugFrames() {
         overlayVC?.showDebugFrames.toggle()
+    }
+
+    // MARK: – Click calibration
+
+    private var calibrationWindow: CalibrationWindow?
+
+    @objc private func startCalibration() {
+        let visible = tracker.state.shopCards
+        guard visible.count >= 2 else {
+            let alert = NSAlert()
+            alert.messageText = "無法校準"
+            alert.informativeText = "請在補兵階段（商店至少有 2 張卡）時進行校準。"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "確定")
+            alert.runModal()
+            return
+        }
+
+        let minPos = visible.map(\.id).min()!
+        let maxPos = visible.map(\.id).max()!
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+
+        let window = CalibrationWindow(screen: screen) { [weak self] points in
+            guard let self, points.count == 2 else { return }
+            self.finishCalibration(points: points, minPos: minPos, maxPos: maxPos)
+        }
+        calibrationWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func finishCalibration(points: [CGPoint], minPos: Int, maxPos: Int) {
+        calibrationWindow = nil
+
+        // AppKit bottom-left → global top-left (CGWindow) coordinates.
+        let primaryH = NSScreen.screens.first?.frame.height ?? 1080
+        let p1 = CGPoint(x: points[0].x, y: primaryH - points[0].y)  // leftmost card
+        let p2 = CGPoint(x: points[1].x, y: primaryH - points[1].y)  // rightmost card
+
+        let frame = GameWindowLocator.findHearthstoneWindow()
+            ?? CGRect(x: 0, y: 0,
+                      width: NSScreen.screens.first?.frame.width ?? 1920,
+                      height: primaryH)
+
+        let posDelta = max(1, maxPos - minPos)
+        let calibration = ShopCalibration(
+            firstX: (p1.x - frame.minX) / frame.width,
+            firstY: ((p1.y + p2.y) / 2 - frame.minY) / frame.height,
+            spacing: (p2.x - p1.x) / CGFloat(posDelta) / frame.width,
+            firstZonePos: minPos
+        )
+        calibration.save()
+        tracker.calibrationDidChange()
+
+        let alert = NSAlert()
+        alert.messageText = "校準完成"
+        alert.informativeText = "卡片位置已儲存。現在滑鼠懸停與卡片上的標記應該會對準實際卡片。"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "確定")
+        alert.runModal()
     }
 }
 

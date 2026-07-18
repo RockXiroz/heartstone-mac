@@ -10,7 +10,7 @@ final class GameStateTracker: ObservableObject {
     static let shared = GameStateTracker()
 
     // Bump on every user-visible fix so the running build is identifiable in the HUD.
-    static let version = "v0.7"
+    static let version = "v0.8"
 
     @Published private(set) var state          = GameState()
     @Published private(set) var recommendation: ShopRecommendation?
@@ -64,14 +64,16 @@ final class GameStateTracker: ObservableObject {
         // Anchor slot geometry to the actual game window (may be windowed).
         let gameFrame = GameWindowLocator.findHearthstoneWindow()
             ?? CGRect(origin: .zero, size: screenSize)
+        let calibration = ShopCalibration.load()
 
+        // Keys are the REAL zonePos values (1-based, gaps preserved after buys).
         let ordered = cardIDs.sorted { $0.key < $1.key }
-        let slotCount = ordered.count
-        let slots: [ShopSlot] = ordered.enumerated().map { (position, entry) in
-            let (slotIndex, cardId) = entry
+        let capacity = max(cardIDs.keys.max() ?? ordered.count, ordered.count)
+        let slots: [ShopSlot] = ordered.map { (zonePos, cardId) in
             let card = db.findCard(byID: cardId) ?? .placeholder(id: cardId)
-            return ShopSlot(id: slotIndex, card: card,
-                            screenRegion: slotRect(position: position, of: slotCount, in: gameFrame))
+            let region = calibration?.rect(forZonePos: zonePos, in: gameFrame)
+                ?? slotRect(zonePos: zonePos, capacity: capacity, in: gameFrame)
+            return ShopSlot(id: zonePos, card: card, screenRegion: region)
         }
 
         state.shopCards = slots
@@ -115,25 +117,31 @@ final class GameStateTracker: ObservableObject {
 
     // MARK: – Shop slot geometry (global top-left origin, relative to game window)
 
-    // Hearthstone scales its UI to a 16:9 content box centred in the window:
-    // wider windows letterbox horizontally, narrower ones vertically. Slot
-    // positions therefore derive from the content-box HEIGHT (measured from
-    // real screenshots): spacing ≈ 0.171·H, row centre ≈ 0.508·H from content top.
-    private func slotRect(position: Int, of count: Int, in frame: CGRect) -> CGRect {
+    // Heuristic fallback when no calibration exists. Hearthstone scales its UI
+    // to a 16:9 content box centred in the window; constants measured from a
+    // full-screen screenshot: spacing ≈ 0.122·H, shop row centre ≈ 0.376·H
+    // from content top. Slots are laid out for `capacity` positions centred on
+    // the window mid — zonePos is 1-based, gaps from bought minions preserved.
+    private func slotRect(zonePos: Int, capacity: Int, in frame: CGRect) -> CGRect {
         let contentH   = min(frame.height, frame.width / 1.78)
         let contentTop = frame.midY - contentH / 2
 
-        let spacing = 0.171 * contentH
-        let slotW   = 0.130 * contentH
-        let slotH   = 0.240 * contentH
-        let rowCenterY = contentTop + 0.508 * contentH
+        let spacing = 0.122 * contentH
+        let slotW   = 0.110 * contentH
+        let slotH   = 0.190 * contentH
+        let rowCenterY = contentTop + 0.376 * contentH
 
-        let cx = frame.midX + (CGFloat(position) - CGFloat(count - 1) / 2) * spacing
+        let cx = frame.midX + (CGFloat(zonePos) - (CGFloat(capacity) + 1) / 2) * spacing
         return CGRect(
             x: cx - slotW / 2,
             y: rowCenterY - slotH / 2,
             width: slotW,
             height: slotH
         )
+    }
+
+    // Re-resolve current shop after a calibration change.
+    func calibrationDidChange() {
+        if !lastShopIDs.isEmpty { updateShop(cardIDs: lastShopIDs) }
     }
 }
