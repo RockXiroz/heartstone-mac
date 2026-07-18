@@ -10,7 +10,7 @@ final class GameStateTracker: ObservableObject {
     static let shared = GameStateTracker()
 
     // Bump on every user-visible fix so the running build is identifiable in the HUD.
-    static let version = "v0.5"
+    static let version = "v0.6"
 
     @Published private(set) var state          = GameState()
     @Published private(set) var recommendation: ShopRecommendation?
@@ -115,20 +115,25 @@ final class GameStateTracker: ObservableObject {
 
     // MARK: – Shop slot geometry (global top-left origin, relative to game window)
 
-    // The shop row is horizontally centred on the board; slot spacing is ~6.6%
-    // of window width. Position is the card's index within the visible row.
+    // Hearthstone scales its UI to a 16:9 content box centred in the window:
+    // wider windows letterbox horizontally, narrower ones vertically. Slot
+    // positions therefore derive from the content-box HEIGHT (measured from
+    // real screenshots): spacing ≈ 0.171·H, row centre ≈ 0.508·H from content top.
     private func slotRect(position: Int, of count: Int, in frame: CGRect) -> CGRect {
-        let spacing: CGFloat = 0.066
-        let slotW:   CGFloat = 0.062
-        let rowY:    CGFloat = 0.26
-        let rowH:    CGFloat = 0.22
+        let contentH   = min(frame.height, frame.width / 1.78)
+        let contentTop = frame.midY - contentH / 2
 
-        let centerX = 0.5 + (CGFloat(position) - CGFloat(count - 1) / 2) * spacing
+        let spacing = 0.171 * contentH
+        let slotW   = 0.130 * contentH
+        let slotH   = 0.240 * contentH
+        let rowCenterY = contentTop + 0.508 * contentH
+
+        let cx = frame.midX + (CGFloat(position) - CGFloat(count - 1) / 2) * spacing
         return CGRect(
-            x: frame.minX + (centerX - slotW / 2) * frame.width,
-            y: frame.minY + rowY * frame.height,
-            width: slotW * frame.width,
-            height: rowH * frame.height
+            x: cx - slotW / 2,
+            y: rowCenterY - slotH / 2,
+            width: slotW,
+            height: slotH
         )
     }
 }

@@ -152,21 +152,34 @@ final class HUDWindow: NSPanel {
     // Maps the global mouse position to a shop slot. Slot regions use global
     // top-left origin (CGWindow coords); NSEvent.mouseLocation uses bottom-left
     // origin relative to the primary screen — flip against the primary height.
+    // Forgiving matching: while the cursor is anywhere in the shop row's
+    // vertical band, snap to the NEAREST slot by horizontal distance, so small
+    // geometry estimation errors never make hover feel dead.
     @MainActor
     private func hoveredPick(in rec: ShopRecommendation) -> Recommendation? {
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 1080
         let mouse = NSEvent.mouseLocation
 
-        return rec.allPicks.first { pick in
+        var best: (pick: Recommendation, dx: CGFloat)?
+        for pick in rec.allPicks {
             let slot = pick.shopSlotRegion
             let flipped = NSRect(
                 x: slot.minX,
                 y: primaryHeight - slot.maxY,
                 width: slot.width,
                 height: slot.height
-            ).insetBy(dx: -8, dy: -20)   // generous margin: geometry is approximate
-            return flipped.contains(mouse)
+            )
+            // Vertical band check with generous margin.
+            let band = flipped.insetBy(dx: 0, dy: -40)
+            guard mouse.y >= band.minY, mouse.y <= band.maxY else { continue }
+
+            let dx = abs(mouse.x - flipped.midX)
+            // Accept up to ~1.2 slot-widths from the centre; keep the nearest.
+            if dx <= flipped.width * 1.2, dx < (best?.dx ?? .infinity) {
+                best = (pick, dx)
+            }
         }
+        return best?.pick
     }
 
     deinit { refreshTimer?.invalidate() }
