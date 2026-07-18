@@ -88,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "關於", action: #selector(showAbout), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "設定種族池…", action: #selector(showTribeConfig), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "顯示/隱藏 位置校準框", action: #selector(toggleDebugFrames), keyEquivalent: "d"))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "結束", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem?.menu = menu
@@ -119,6 +120,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         TribeConfigWindow.show { [weak self] tribes in
             self?.tracker.setActiveTribePool(tribes)
         }
+    }
+
+    @objc private func toggleDebugFrames() {
+        overlayVC?.showDebugFrames.toggle()
     }
 }
 

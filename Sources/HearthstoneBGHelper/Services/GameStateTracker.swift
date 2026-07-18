@@ -10,7 +10,7 @@ final class GameStateTracker: ObservableObject {
     static let shared = GameStateTracker()
 
     // Bump on every user-visible fix so the running build is identifiable in the HUD.
-    static let version = "v0.6"
+    static let version = "v0.7"
 
     @Published private(set) var state          = GameState()
     @Published private(set) var recommendation: ShopRecommendation?
